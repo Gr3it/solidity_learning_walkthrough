@@ -3,6 +3,7 @@ from web3 import Web3
 from solcx import compile_standard, install_solc
 import os
 from dotenv import load_dotenv
+from web3.middleware import geth_poa_middleware
 
 load_dotenv()
 
@@ -41,34 +42,34 @@ abi = json.loads(
 
 #for connetting to ganache
 w3 = Web3(Web3.HTTPProvider("https://rinkeby.infura.io/v3/d73bd5c41583447ea0b83243c3c519d1"))
+w3.middleware_onion.inject(geth_poa_middleware, layer=0)
 chain_id = 4
 my_address = "0x2F79c1ae4d60Bb2DfF0389782359E3676712e6E3"
 private_key = os.getenv("PRIVATE_KEY")
 
-#create the contract in python
+# Create the contract in Python
 SimpleStorage = w3.eth.contract(abi=abi, bytecode=bytecode)
-
-#get the latest transaction
+# Get the latest transaction
 nonce = w3.eth.getTransactionCount(my_address)
-
-# 1. build a transaction
-# 2. sign a transaction
-# 3. send a transaction
-
+# Submit the transaction that deploys the contract
 transaction = SimpleStorage.constructor().buildTransaction(
     {"chainId": chain_id, "from": my_address, "nonce": nonce}
 )
-
+# Sign the transaction
 signed_txn = w3.eth.account.sign_transaction(transaction, private_key=private_key)
-
+print("Deploying Contract!")
+# Send it!
 tx_hash = w3.eth.send_raw_transaction(signed_txn.rawTransaction)
-
+# Wait for the transaction to be mined, and get the transaction receipt
+print("Waiting for transaction to finish...")
 tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+print(f"Done! Contract deployed to {tx_receipt.contractAddress}")
+
 
 # Working with deployed Contracts
 simple_storage = w3.eth.contract(address=tx_receipt.contractAddress, abi=abi)
 print(f"Initial Stored Value {simple_storage.functions.retrieve().call()}")
-greeting_transaction = simple_storage.functions.store(50).buildTransaction(
+greeting_transaction = simple_storage.functions.store(15).buildTransaction(
     {"chainId": chain_id, "from": my_address, "nonce": nonce + 1}
 )
 signed_greeting_txn = w3.eth.account.sign_transaction(
@@ -79,5 +80,3 @@ print("Updating stored Value...")
 tx_receipt = w3.eth.wait_for_transaction_receipt(tx_greeting_hash)
 
 print(simple_storage.functions.retrieve().call())
-
-
